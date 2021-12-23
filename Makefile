@@ -8,7 +8,7 @@ proto:
 	go mod tidy
 
 clean:
-	rm -rf bin/driver-plugin
+	rm -rf bin
 	rm -rf pkg/driverplugin
 
 .PHONY: all build proto

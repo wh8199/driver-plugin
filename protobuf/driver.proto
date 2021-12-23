@@ -1,0 +1,287 @@
+syntax = "proto3";
+
+option go_package = "pkg/driverplugin";
+
+package driverplugin;
+
+// Response status code
+enum StatusCode {
+    // status ok
+    StatusOK = 0;
+    // device id or device name is invalid. When registering an illegal device to iotedge, this status code will be returned
+	InvalidDeviceIdOrDeviceName = 1;
+    // invalid report data format
+	InvalidReportDataFormat = 2;
+    // the token in the header is invalid
+	InvalidDriverAccessToken = 3;
+    // no token is found in header
+    TokenNotFound = 4;
+    DriverPluginNotFound = 5;
+    // connection not found
+    // When connecting to iotedge, you need to call the connect method first. If it is not called, this status code will be returned when sending other commands 
+    NotConnected = 6;
+    // Unsupported life cycle. For example, some devices do not support certain life cycle control requests, driver plugin will return this status code 
+    UnsupportLifeCycleRequest = 7;
+    // Unsupport command
+    UnsupportCommand = 8;
+    // a common error status. If the error code is not found above, you can return this general error code, and the detailed error information is placed in the errormessage field  
+    Unknown = 9;
+}
+
+// grpc response
+message Response {
+    string Response = 1;
+    string ErrorMessage = 2;
+    StatusCode  StatusCode = 3;
+    string RequestID = 4;
+}
+
+// support data types
+enum DataType{
+    Int8 = 0;
+    UInt8 = 1;
+    
+    Int16 = 2;
+    UInt16 = 3;
+
+    Int32 = 4;
+    UInt32 = 5;
+
+    Int = 6;
+    UInt = 7;
+
+    Int64 = 8;
+    UInt64 = 9;
+
+    Float = 10;
+    Double = 11;
+
+	String = 12;
+    Bytes = 13;
+
+    Bool = 14;
+    IntegerBool = 15;
+
+    Datatime = 16;
+}
+
+// device command params
+message RequestParam {
+    DataType DataType = 1;
+    string Value = 2;
+}
+
+// device command
+message Request {
+    // module name
+    string Service = 1;
+    // command name
+    string Command = 2;
+    string RequestID = 3;
+    string DeviceID = 4;
+    // params
+    map<string,RequestParam> Params = 5;
+}
+
+// device command param defination
+message RequestParamDef {
+    DataType DataType = 1;
+}
+
+// device command defination
+message CommandDef {
+    // module name
+    string Service = 1;
+    // command name
+    string Command = 2;
+    // params
+    map<string,RequestParamDef> RequestParam = 3;
+
+    // command extension config
+    string CommandExtensionConfig = 4;
+}
+
+// device property defination
+message PropertyDef {
+    // module name
+    string Service = 1;
+    // property name
+    string Property = 2;
+    // writeable?, true means writeable, and false is readonly, default is readonly
+    bool   WriteAble = 3;
+    // max value, only valid for numbers
+    double MaxValue = 4;
+    // min value, only valid for numbers
+    double MinValue = 5;
+    // property unit
+    string unit = 6;
+    // data type
+    DataType DataType = 7;
+    // property extension config
+    string PropertyExtensionConfig = 8;
+}
+
+// device event defination
+message EventDef {
+    // module name 
+    string Service = 1;
+    // event name
+    string Event = 2;
+    
+    // event type enum
+    enum type {
+        InfoEvent = 0;
+        WarningEvent = 1;
+        AlertEvent = 2;
+    }
+
+    // event type
+    type EventType = 3;
+    // defailed event message
+    string Detail = 4;
+
+    // event extension config
+    string EventExtensionConfig = 5;
+}
+
+// device defination, it includes device name,id, property,event and command definations
+message DeviceDef {
+    string DeviceName = 1;
+    string DeviceID = 2;
+    // not necessary when register device
+    string ProductID = 3;
+    repeated PropertyDef properties = 4;
+    repeated EventDef events = 5;
+    repeated CommandDef commands = 6;
+    string CollectInterval = 7;
+    string Timeout = 8;
+    bool ReportOnChange = 9;
+    string DeviceExtensionConfig = 10;
+    // only valid when fetch device metadata
+    bool StopCollecting = 11;
+}
+
+// The request message containing the user's name.
+message RegisterRequest {
+    // device definations, these devices will be created automaticly
+    repeated DeviceDef DeviceDef = 1;
+}
+
+message ConnectRequest {}
+
+enum ServiceQuantity {
+    Once = 0;
+    AtLeastOnce = 1;
+    
+}
+
+// report device datas
+message Data {
+    bytes Datas = 1;
+
+}
+
+// device status
+message DeviceStatus {
+    // DeviceStatus, enum values are online,offline,error
+    // online -- collecting
+    // offline -- stop collecting
+    // error -- start collecting, but some error happens
+    enum DeviceState {
+        OnlineState = 0;
+        OfflineState = 1;
+        ErrorState = 2;
+    }
+
+    DeviceState State = 1;
+    // error reason
+    string Error = 2;
+    // status timestamp
+    int64 LastEventTime = 3;
+}
+
+// heartbeat messags, it contains all device status
+message HeartBeat {
+    map<string,DeviceStatus> DeviceStatus = 1;
+}
+
+// Get device metas from iotedge/iothub
+message DeviceMetaFetchRequest {}
+
+// device metadata, it contains device defination
+message DeviceMeta {
+    DeviceDef Defination = 1;
+}
+
+// device metadata array
+message DeviceMetas {
+    repeated DeviceMeta DeviceMetas = 1;
+}
+
+// device life control request, iotedge can use this request to control driverplugin
+message DeviceLifeControlRequest {
+    enum DeviceLifeControlCommand {
+        // add a new device
+        AddDevice = 0;
+        // drop a device
+        DeleteDevice = 1;
+        // start collecting device data
+        StartDevice = 2;
+        // stop collecting device data
+        StopDevice = 3;
+        // restart collecting device data
+        RestartDevice = 4;
+        // update device metadata and restart device
+        UpdateDevice = 5;
+        // update device metadata, no restart
+        Reconfigure = 6;
+        // probe devices in a subnet
+        ProbeDevices = 7;
+        // check the device and property extensionconfig
+        CheckExtensionConfig = 8;
+    }
+
+    DeviceLifeControlCommand Command = 1;
+    string RequestID = 2;
+    // device metadata
+    DeviceMeta meta = 3;
+}
+
+message ReportProperty {
+    DataType DataType = 1;
+    string Value = 2;
+    string DeviceService = 3;
+    string DeviceProperty = 4;
+}
+
+message ReportMessage {
+    int64 Timestamp = 1;
+    string DeviceID = 2;
+    string ProductID = 3;
+    repeated ReportProperty ReportProperties = 4;
+}
+
+message ReportMessages {
+    repeated ReportMessage ReportMessages = 1;
+}
+
+service DriverPlugin {
+    // connect to iotedge
+    rpc Connect (ConnectRequest) returns (Response) {}
+    // register device service
+    rpc DriverRegister (RegisterRequest) returns (Response) {}
+    // fetch device meta service
+    rpc FetchDeviceMeta (DeviceMetaFetchRequest) returns (DeviceMetas) {}
+    // report device data
+    rpc TransformData (stream Data) returns (stream Response) {}
+    // report device status
+    rpc SendHeartBeat (HeartBeat) returns (Response) {}
+    // exec device commands
+    rpc ExecCommands (stream Response) returns (stream Request) {}
+    // life cycle control of a device
+    rpc DeviceLifeControl (stream Response) returns (stream DeviceLifeControlRequest) {}
+    // Transform report message
+    rpc TransformRawData (stream ReportMessage) returns (stream Response) {}
+    // Batch transform report message
+    rpc TransformBatchRawData (stream ReportMessages) returns (stream Response) {}
+}
